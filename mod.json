@@ -3,7 +3,7 @@
     "gd": {
         "win": "*"
     },
-    "id": "chickadee.auto-deafen",
+    "id": "nightcat.auto-deafen",
     "name": "Auto Deafen",
     "version": "1.0.0",
     "developer": "Nightcat",

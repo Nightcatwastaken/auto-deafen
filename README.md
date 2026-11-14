@@ -25,7 +25,7 @@ Mouse side buttons work best. Left and right click press at your cursor, so bind
 
 ## Installation
 
-Download `chickadee.auto-deafen.geode` from the Releases page and drop it into your `geode/mods` folder.
+Download `nightcat.auto-deafen.geode` from the Releases page and drop it into your `geode/mods` folder.
 
 ## Building from source
 
