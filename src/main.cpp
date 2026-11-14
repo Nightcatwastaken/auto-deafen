@@ -131,18 +131,21 @@ public:
         auto row = CCMenu::create();
         auto setBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Set Key"), this, menu_selector(AutoDeafenPopup::onListen));
-        setBtn->setPosition({-90.f, 0.f});
+        setBtn->setScale(0.7f);
+        setBtn->setPosition({-95.f, 0.f});
         row->addChild(setBtn);
 
         auto testBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Test"), this, menu_selector(AutoDeafenPopup::onTest));
+        testBtn->setScale(0.7f);
         testBtn->setPosition({0.f, 0.f});
         row->addChild(testBtn);
 
         m_toggleSprite = ButtonSprite::create(m_enabled ? "On" : "Off");
         auto toggleBtn = CCMenuItemSpriteExtra::create(
             m_toggleSprite, this, menu_selector(AutoDeafenPopup::onToggle));
-        toggleBtn->setPosition({90.f, 0.f});
+        toggleBtn->setScale(0.7f);
+        toggleBtn->setPosition({95.f, 0.f});
         row->addChild(toggleBtn);
 
         row->setPosition({size.width / 2, size.height / 2 - 25});
