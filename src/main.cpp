@@ -110,7 +110,7 @@ public:
     }
 
     bool init(int levelId) {
-        if (!Popup::init(320.f, 200.f)) return false;
+        if (!Popup::init(320.f, 220.f)) return false;
         m_levelId = levelId;
         m_key = Mod::get()->getSavedValue<int>(keyKey(levelId), 0);
         m_enabled = Mod::get()->getSavedValue<bool>(enabledKey(levelId), true);
@@ -122,6 +122,11 @@ public:
         m_triggerInput->setString(Mod::get()->getSavedValue<std::string>(triggersKey(levelId), ""));
         m_triggerInput->setPosition({size.width / 2, size.height / 2 + 40});
         m_mainLayer->addChild(m_triggerInput);
+
+        auto percentLabel = CCLabelBMFont::create("Percentage", "goldFont.fnt");
+        percentLabel->setScale(0.5f);
+        percentLabel->setPosition({size.width / 2, size.height / 2 + 70});
+        m_mainLayer->addChild(percentLabel);
 
         m_keyLabel = CCLabelBMFont::create(m_key ? keyName(m_key).c_str() : "No key set", "bigFont.fnt");
         m_keyLabel->setScale(0.45f);
