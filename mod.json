@@ -1,0 +1,25 @@
+{
+    "geode": "5.11.2",
+    "gd": {
+        "win": "*"
+    },
+    "id": "chickadee.auto-deafen",
+    "name": "Auto Deafen",
+    "version": "1.0.0",
+    "developer": "Chickadee",
+    "description": "Presses a key automatically at chosen level percentages.",
+    "tags": ["gameplay"],
+    "resources": {
+        "sprites": [
+            "resources/icon-button.png"
+        ]
+    },
+    "settings": {
+        "master-enabled": {
+            "name": "Enable Auto Deafen",
+            "description": "Turn all Auto Deafen triggers on or off.",
+            "type": "bool",
+            "default": true
+        }
+    }
+}
