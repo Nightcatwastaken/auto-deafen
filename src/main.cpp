@@ -314,7 +314,7 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
     }
 
     void pauseGame(bool unfocused) {
-        if (!unfocused) undeafenIfNeeded("pause");
+        // TEST: pause undeafen disabled to check whether it breaks the buttons
         PlayLayer::pauseGame(unfocused);
     }
 
