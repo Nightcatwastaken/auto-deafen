@@ -313,6 +313,11 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
         undeafenIfNeeded("completion");
     }
 
+    void pauseGame(bool unfocused) {
+        if (!unfocused) undeafenIfNeeded("pause");
+        PlayLayer::pauseGame(unfocused);
+    }
+
     void onQuit() {
         undeafenIfNeeded("leaving level");
         PlayLayer::onQuit();
