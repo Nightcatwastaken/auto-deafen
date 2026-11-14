@@ -97,6 +97,7 @@ class AutoDeafenPopup : public Popup {
     ButtonSprite* m_toggleSprite = nullptr;
     bool m_listening = false;
     bool m_armed = false;
+    float m_listenFor = 0.f;
 
 public:
     static AutoDeafenPopup* create(int levelId) {
@@ -179,41 +180,45 @@ public:
         pressBind(m_key);
     }
 
+    void cancelListen() {
+        m_listening = false;
+        this->unschedule(schedule_selector(AutoDeafenPopup::pollBind));
+        m_keyLabel->setString(m_key ? keyName(m_key).c_str() : "No key set");
+    }
+
     void onListen(CCObject*) {
         m_listening = true;
-        m_armed = false; // wait for buttons to be released first, so the click that opened this doesn't count
-        m_keyLabel->setString("Press a key or mouse button... (Esc cancels)");
+        m_armed = false; // ignore the click that opened this until all buttons are released
+        m_listenFor = 0.f;
+        m_keyLabel->setString("Press a key...");
         this->schedule(schedule_selector(AutoDeafenPopup::pollBind));
     }
 
-    void pollBind(float) {
+    void pollBind(float dt) {
         if (!m_listening) return;
+        m_listenFor += dt;
+        if (m_listenFor > 5.f) { cancelListen(); return; }
 
         int pressed = 0;
         bool anyDown = false;
+        bool leftOrRight = false;
         for (int vk = 1; vk <= 0xFE; ++vk) {
-            if (isDown(vk)) {
-                anyDown = true;
-                if (!pressed) pressed = vk;
-            }
+            if (!isDown(vk)) continue;
+            anyDown = true;
+            if (vk == VK_LBUTTON || vk == VK_RBUTTON) { leftOrRight = true; continue; }
+            if (!pressed) pressed = vk;
         }
 
         if (!m_armed) {
             if (!anyDown) m_armed = true;
             return;
         }
+        // left/right click means the user is clicking a button, so stop listening and let it act
+        if (leftOrRight) { cancelListen(); return; }
         if (!pressed) return;
-
-        this->unschedule(schedule_selector(AutoDeafenPopup::pollBind));
-        m_listening = false;
-        if (pressed == VK_ESCAPE) {
-            m_keyLabel->setString(m_key ? keyName(m_key).c_str() : "No key set");
-            return;
-        }
-        m_key = pressed;
-        m_keyLabel->setString(keyName(m_key).c_str());
+        if (pressed != VK_ESCAPE) m_key = pressed;
+        cancelListen();
     }
-
     void onSave(CCObject*) {
         auto triggers = parseTriggers(std::string(m_triggerInput->getString()));
 
@@ -314,7 +319,7 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
     }
 
     void pauseGame(bool unfocused) {
-        // TEST: pause undeafen disabled to check whether it breaks the buttons
+        if (!unfocused) undeafenIfNeeded("pause");
         PlayLayer::pauseGame(unfocused);
     }
 
