@@ -334,6 +334,7 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
         if (!m_level) return;
         if (!m_fields->loaded) loadSettings();
         if (!m_fields->enabled || m_fields->triggers.empty() || m_fields->key == 0) return;
+        if (m_isPracticeMode) return; // never auto-deafen in practice mode
 
         int pct = this->getCurrentPercentInt();
         if (pct < 0 || pct > 100) return;
