@@ -6,7 +6,7 @@
     "id": "chickadee.auto-deafen",
     "name": "Auto Deafen",
     "version": "1.0.0",
-    "developer": "Chickadee",
+    "developer": "Nightcat",
     "description": "Presses a key automatically at chosen level percentages.",
     "tags": ["gameplay"],
     "resources": {
