@@ -2,8 +2,6 @@
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <algorithm>
-#include <cctype>
-#include <cstdlib>
 #include <set>
 #include <sstream>
 #include <string>
@@ -11,8 +9,9 @@
 
 using namespace geode::prelude;
 
-// ---------- helpers ----------
+// ---------- storage ----------
 
+// Trigger percents and the on/off switch are saved per level.
 static std::string triggersKey(int levelId) {
     return fmt::format("triggers-{}", levelId);
 }
@@ -21,11 +20,12 @@ static std::string enabledKey(int levelId) {
     return fmt::format("enabled-{}", levelId);
 }
 
-static std::string keyKey(int) {
+// The bind is shared by every level.
+static std::string keyKey() {
     return "global-key";
 }
 
-// "25, 50 75" -> {25, 50, 75}. Ignores values outside 0-100, sorts, removes duplicates.
+// "25, 50 75" -> {25, 50, 75}. Keeps values 0-100, sorted, no duplicates.
 static std::vector<int> parseTriggers(std::string raw) {
     std::replace(raw.begin(), raw.end(), ',', ' ');
     std::istringstream ss(raw);
@@ -37,7 +37,8 @@ static std::vector<int> parseTriggers(std::string raw) {
     return std::vector<int>(vals.begin(), vals.end());
 }
 
-// Human-readable name for a virtual-key code.
+// ---------- input ----------
+
 static std::string keyName(int vk) {
     switch (vk) {
         case VK_LBUTTON:  return "Mouse Left";
@@ -53,7 +54,7 @@ static std::string keyName(int vk) {
     return fmt::format("0x{:02X}", vk);
 }
 
-// Presses and releases a key or mouse button. Mouse buttons need mouse events, not keyboard events.
+// Presses and releases a key or mouse button. Mouse buttons need mouse events.
 static void pressBind(int vk) {
     switch (vk) {
         case VK_LBUTTON:
@@ -95,8 +96,10 @@ class AutoDeafenPopup : public Popup {
     TextInput* m_triggerInput = nullptr;
     CCLabelBMFont* m_keyLabel = nullptr;
     ButtonSprite* m_toggleSprite = nullptr;
+
+    // Listening state for the "Set Key" button.
     bool m_listening = false;
-    bool m_armed = false;
+    bool m_armed = false;   // false until every button is released, so the click that started listening doesn't count
     float m_listenFor = 0.f;
 
 public:
@@ -113,28 +116,36 @@ public:
     bool init(int levelId) {
         if (!Popup::init(320.f, 220.f)) return false;
         m_levelId = levelId;
-        m_key = Mod::get()->getSavedValue<int>(keyKey(levelId), 0);
+        m_key = Mod::get()->getSavedValue<int>(keyKey(), 0);
         m_enabled = Mod::get()->getSavedValue<bool>(enabledKey(levelId), true);
         this->setTitle("Auto Deafen");
+
         auto size = m_mainLayer->getContentSize();
+        auto cx = size.width / 2;
+        auto cy = size.height / 2;
+
+        // Percentage label and trigger box
+        auto percentLabel = CCLabelBMFont::create("Percentage", "goldFont.fnt");
+        percentLabel->setScale(0.5f);
+        percentLabel->setPosition({cx, cy + 72});
+        m_mainLayer->addChild(percentLabel);
 
         m_triggerInput = TextInput::create(240.f, "e.g. 25, 50, 75");
         m_triggerInput->setFilter("0123456789, ");
         m_triggerInput->setString(Mod::get()->getSavedValue<std::string>(triggersKey(levelId), ""));
-        m_triggerInput->setPosition({size.width / 2, size.height / 2 + 40});
+        m_triggerInput->setPosition({cx, cy + 40});
         m_mainLayer->addChild(m_triggerInput);
 
-        auto percentLabel = CCLabelBMFont::create("Percentage", "goldFont.fnt");
-        percentLabel->setScale(0.5f);
-        percentLabel->setPosition({size.width / 2, size.height / 2 + 70});
-        m_mainLayer->addChild(percentLabel);
-
+        // Current bind
         m_keyLabel = CCLabelBMFont::create(m_key ? keyName(m_key).c_str() : "No key set", "bigFont.fnt");
         m_keyLabel->setScale(0.45f);
-        m_keyLabel->setPosition({size.width / 2, size.height / 2 + 10});
+        m_keyLabel->setPosition({cx, cy + 10});
         m_mainLayer->addChild(m_keyLabel);
 
+        // Button row: Set Key, Test, On/Off
         auto row = CCMenu::create();
+        row->setPosition({cx, cy - 25});
+
         auto setBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Set Key"), this, menu_selector(AutoDeafenPopup::onListen));
         setBtn->setScale(0.7f);
@@ -154,14 +165,14 @@ public:
         toggleBtn->setPosition({95.f, 0.f});
         row->addChild(toggleBtn);
 
-        row->setPosition({size.width / 2, size.height / 2 - 25});
         m_mainLayer->addChild(row);
 
+        // Save, centered at the bottom
         auto saveMenu = CCMenu::create();
         auto saveBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Save"), this, menu_selector(AutoDeafenPopup::onSave));
         saveMenu->addChild(saveBtn);
-        saveMenu->setPosition({size.width / 2, size.height / 2 - 70});
+        saveMenu->setPosition({cx, cy - 70});
         m_mainLayer->addChild(saveMenu);
 
         return true;
@@ -180,24 +191,34 @@ public:
         pressBind(m_key);
     }
 
+    // ----- Set Key -----
+
+    void onListen(CCObject*) {
+        if (m_listening) {
+            cancelListen();
+            return;
+        }
+        m_listening = true;
+        m_armed = false;
+        m_listenFor = 0.f;
+        m_keyLabel->setString("Press a key...");
+        this->schedule(schedule_selector(AutoDeafenPopup::pollBind));
+    }
+
     void cancelListen() {
         m_listening = false;
         this->unschedule(schedule_selector(AutoDeafenPopup::pollBind));
         m_keyLabel->setString(m_key ? keyName(m_key).c_str() : "No key set");
     }
 
-    void onListen(CCObject*) {
-        m_listening = true;
-        m_armed = false; // ignore the click that opened this until all buttons are released
-        m_listenFor = 0.f;
-        m_keyLabel->setString("Press a key...");
-        this->schedule(schedule_selector(AutoDeafenPopup::pollBind));
-    }
-
     void pollBind(float dt) {
         if (!m_listening) return;
+
         m_listenFor += dt;
-        if (m_listenFor > 5.f) { cancelListen(); return; }
+        if (m_listenFor > 5.f) {
+            cancelListen();
+            return;
+        }
 
         int pressed = 0;
         bool anyDown = false;
@@ -205,7 +226,10 @@ public:
         for (int vk = 1; vk <= 0xFE; ++vk) {
             if (!isDown(vk)) continue;
             anyDown = true;
-            if (vk == VK_LBUTTON || vk == VK_RBUTTON) { leftOrRight = true; continue; }
+            if (vk == VK_LBUTTON || vk == VK_RBUTTON) {
+                leftOrRight = true;
+                continue;
+            }
             if (!pressed) pressed = vk;
         }
 
@@ -213,12 +237,20 @@ public:
             if (!anyDown) m_armed = true;
             return;
         }
-        // left/right click means the user is clicking a button, so stop listening and let it act
-        if (leftOrRight) { cancelListen(); return; }
+
+        // A left or right click means the user is pressing a button, so stop listening and let it act.
+        if (leftOrRight) {
+            cancelListen();
+            return;
+        }
         if (!pressed) return;
+
         if (pressed != VK_ESCAPE) m_key = pressed;
         cancelListen();
     }
+
+    // ----- Save -----
+
     void onSave(CCObject*) {
         auto triggers = parseTriggers(std::string(m_triggerInput->getString()));
 
@@ -227,7 +259,7 @@ public:
             return;
         }
         if (m_key == 0) {
-            FLAlertLayer::create("Auto Deafen", "Click \"Set Key\" and press the key or mouse button first.", "OK")->show();
+            FLAlertLayer::create("Auto Deafen", "Click \"Set Key\" and press a key or mouse button first.", "OK")->show();
             return;
         }
 
@@ -237,17 +269,16 @@ public:
             joined += std::to_string(triggers[i]);
         }
         Mod::get()->setSavedValue<std::string>(triggersKey(m_levelId), joined);
-        Mod::get()->setSavedValue<int>(keyKey(m_levelId), m_key);
+        Mod::get()->setSavedValue<int>(keyKey(), m_key);
         Mod::get()->setSavedValue<bool>(enabledKey(m_levelId), m_enabled);
 
-        log::info("Auto Deafen: level {} saved triggers [{}] key 0x{:02X} enabled {}", m_levelId, joined, m_key, m_enabled);
+        log::info("Auto Deafen: level {} triggers [{}] key 0x{:02X} enabled {}", m_levelId, joined, m_key, m_enabled);
         this->onClose(nullptr);
     }
 };
 // ---------- pause menu button ----------
 
-// Position of the icon, measured from the right edge and the top edge of the window.
-// Adjust these two numbers if the icon is not where you want it.
+// Icon position, measured from the right and top edges of the window.
 static constexpr float ICON_FROM_RIGHT = 36.f;
 static constexpr float ICON_FROM_TOP = 73.f;
 
@@ -262,8 +293,7 @@ class $modify(AutoDeafenPauseLayer, PauseLayer) {
         PauseLayer::customSetup();
 
         auto btn = CCMenuItemSpriteExtra::create(
-            autoDeafenIcon(), this,
-            menu_selector(AutoDeafenPauseLayer::onAutoDeafen));
+            autoDeafenIcon(), this, menu_selector(AutoDeafenPauseLayer::onAutoDeafen));
         auto menu = CCMenu::create();
         menu->addChild(btn);
         auto win = CCDirector::sharedDirector()->getWinSize();
@@ -282,24 +312,25 @@ class $modify(AutoDeafenPauseLayer, PauseLayer) {
 
 class $modify(AutoDeafenPlayLayer, PlayLayer) {
     struct Fields {
-        std::set<int> fired;
+        std::set<int> fired;          // triggers already used this attempt
         std::vector<int> triggers;
         int key = 0;
-        bool loaded = false;
-        bool deafened = false;
         bool enabled = false;
+        bool loaded = false;
+        bool deafened = false;        // true after an odd number of presses
     };
 
     void loadSettings() {
         int id = m_level->m_levelID.value();
         m_fields->triggers = parseTriggers(Mod::get()->getSavedValue<std::string>(triggersKey(id), ""));
-        m_fields->key = Mod::get()->getSavedValue<int>(keyKey(id), 0);
+        m_fields->key = Mod::get()->getSavedValue<int>(keyKey(), 0);
         bool levelOn = Mod::get()->getSavedValue<bool>(enabledKey(id), true);
         bool masterOn = Mod::get()->getSettingValue<bool>("master-enabled");
         m_fields->enabled = levelOn && masterOn;
         m_fields->loaded = true;
     }
 
+    // Presses the key once if we are currently deafened.
     void undeafenIfNeeded(char const* why) {
         if (m_fields->deafened && m_fields->key != 0) {
             pressBind(m_fields->key);
@@ -319,6 +350,7 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
     }
 
     void pauseGame(bool unfocused) {
+        // Alt-tabbing (unfocused) doesn't undeafen; only the pause menu does.
         if (!unfocused) undeafenIfNeeded("pause");
         PlayLayer::pauseGame(unfocused);
     }
