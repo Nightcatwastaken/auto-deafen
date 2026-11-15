@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
+#include <Geode/utils/Keyboard.hpp>
 #include <algorithm>
 #include <set>
 #include <sstream>
@@ -18,6 +19,17 @@ static std::string triggersKey(int levelId) {
 
 static std::string enabledKey(int levelId) {
     return fmt::format("enabled-{}", levelId);
+}
+
+// Side mouse buttons, as cocos key codes.
+static constexpr int MOUSE_SIDE_1 = 0x1100;
+static constexpr int MOUSE_SIDE_2 = 0x1101;
+
+// Older builds saved side buttons as Windows codes 5 and 6.
+static int normalizeKey(int key) {
+    if (key == VK_XBUTTON1) return MOUSE_SIDE_1;
+    if (key == VK_XBUTTON2) return MOUSE_SIDE_2;
+    return key;
 }
 
 // The bind is shared by every level.
@@ -41,11 +53,8 @@ static std::vector<int> parseTriggers(std::string raw) {
 
 static std::string keyName(int vk) {
     switch (vk) {
-        case VK_LBUTTON:  return "Mouse Left";
-        case VK_RBUTTON:  return "Mouse Right";
-        case VK_MBUTTON:  return "Mouse Middle";
-        case VK_XBUTTON1: return "Mouse Side 1";
-        case VK_XBUTTON2: return "Mouse Side 2";
+        case MOUSE_SIDE_1: return "Mouse Side 1";
+        case MOUSE_SIDE_2: return "Mouse Side 2";
         default: break;
     }
     UINT scan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
@@ -54,38 +63,16 @@ static std::string keyName(int vk) {
     return fmt::format("0x{:02X}", vk);
 }
 
-// Presses and releases a key or mouse button. Mouse buttons need mouse events.
-static void pressBind(int vk) {
-    switch (vk) {
-        case VK_LBUTTON:
-            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-            return;
-        case VK_RBUTTON:
-            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0);
-            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
-            return;
-        case VK_MBUTTON:
-            mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0);
-            mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0);
-            return;
-        case VK_XBUTTON1:
-            mouse_event(MOUSEEVENTF_XDOWN, 0, 0, XBUTTON1, 0);
-            mouse_event(MOUSEEVENTF_XUP, 0, 0, XBUTTON1, 0);
-            return;
-        case VK_XBUTTON2:
-            mouse_event(MOUSEEVENTF_XDOWN, 0, 0, XBUTTON2, 0);
-            mouse_event(MOUSEEVENTF_XUP, 0, 0, XBUTTON2, 0);
-            return;
-        default:
-            keybd_event(static_cast<BYTE>(vk), 0, 0, 0);
-            keybd_event(static_cast<BYTE>(vk), 0, KEYEVENTF_KEYUP, 0);
-            return;
+// Presses and releases a key or side mouse button.
+static void pressBind(int key) {
+    if (key == MOUSE_SIDE_1 || key == MOUSE_SIDE_2) {
+        DWORD btn = (key == MOUSE_SIDE_1) ? XBUTTON1 : XBUTTON2;
+        mouse_event(MOUSEEVENTF_XDOWN, 0, 0, btn, 0);
+        mouse_event(MOUSEEVENTF_XUP, 0, 0, btn, 0);
+        return;
     }
-}
-
-static bool isDown(int vk) {
-    return (GetAsyncKeyState(vk) & 0x8000) != 0;
+    keybd_event(static_cast<BYTE>(key), 0, 0, 0);
+    keybd_event(static_cast<BYTE>(key), 0, KEYEVENTF_KEYUP, 0);
 }
 // ---------- settings popup ----------
 
@@ -97,10 +84,7 @@ class AutoDeafenPopup : public Popup {
     CCLabelBMFont* m_keyLabel = nullptr;
     ButtonSprite* m_toggleSprite = nullptr;
 
-    // Listening state for the "Set Key" button.
     bool m_listening = false;
-    bool m_armed = false;   // false until every button is released, so the click that started listening doesn't count
-    float m_listenFor = 0.f;
 
 public:
     static AutoDeafenPopup* create(int levelId) {
@@ -116,9 +100,10 @@ public:
     bool init(int levelId) {
         if (!Popup::init(320.f, 220.f)) return false;
         m_levelId = levelId;
-        m_key = Mod::get()->getSavedValue<int>(keyKey(), 0);
+        m_key = normalizeKey(Mod::get()->getSavedValue<int>(keyKey(), 0));
         m_enabled = Mod::get()->getSavedValue<bool>(enabledKey(levelId), true);
         this->setTitle("Auto Deafen");
+        this->listenToInput();
 
         auto size = m_mainLayer->getContentSize();
         auto cx = size.width / 2;
@@ -192,6 +177,25 @@ public:
     }
 
     // ----- Set Key -----
+    // Uses Geode's input events, the same way Geode's own keybind editor does.
+    // Left, right, and middle click are ignored, so the buttons keep working while listening.
+
+    void listenToInput() {
+        this->addEventListener(KeyboardInputEvent(), [this](KeyboardInputData& data) {
+            if (!m_listening || data.action != KeyboardInputData::Action::Press) return;
+            captureKey(static_cast<int>(data.key));
+        });
+        this->addEventListener(MouseInputEvent(), [this](MouseInputData& data) {
+            if (!m_listening || data.action != MouseInputData::Action::Press) return;
+            auto key = MouseInputData::buttonToKeyCode(data.button);
+            if (key != cocos2d::enumKeyCodes::KEY_None) captureKey(static_cast<int>(key));
+        });
+    }
+
+    void captureKey(int key) {
+        if (key != 0x1B) m_key = key; // Escape cancels and keeps the old bind
+        cancelListen();
+    }
 
     void onListen(CCObject*) {
         if (m_listening) {
@@ -199,59 +203,19 @@ public:
             return;
         }
         m_listening = true;
-        m_armed = false;
-        m_listenFor = 0.f;
         m_keyLabel->setString("Press a key...");
-        this->schedule(schedule_selector(AutoDeafenPopup::pollBind));
+        this->scheduleOnce(schedule_selector(AutoDeafenPopup::onListenTimeout), 5.f);
+    }
+
+    void onListenTimeout(float) {
+        cancelListen();
     }
 
     void cancelListen() {
         m_listening = false;
-        this->unschedule(schedule_selector(AutoDeafenPopup::pollBind));
+        this->unschedule(schedule_selector(AutoDeafenPopup::onListenTimeout));
         m_keyLabel->setString(m_key ? keyName(m_key).c_str() : "No key set");
     }
-
-    void pollBind(float dt) {
-        if (!m_listening) return;
-
-        m_listenFor += dt;
-        if (m_listenFor > 5.f) {
-            cancelListen();
-            return;
-        }
-
-        int pressed = 0;
-        bool anyDown = false;
-        bool leftOrRight = false;
-        for (int vk = 1; vk <= 0xFE; ++vk) {
-            short state = GetAsyncKeyState(vk);
-            bool down = (state & 0x8000) != 0;   // held right now
-            bool tapped = (state & 0x0001) != 0; // pressed since the last check, even if already released
-            if (!down && !tapped) continue;
-            if (down) anyDown = true;
-            if (vk == VK_LBUTTON || vk == VK_RBUTTON) {
-                if (down) leftOrRight = true;
-                continue;
-            }
-            if (!pressed) pressed = vk;
-        }
-
-        if (!m_armed) {
-            if (!anyDown) m_armed = true;
-            return;
-        }
-
-        // A left or right click means the user is pressing a button, so stop listening and let it act.
-        if (leftOrRight) {
-            cancelListen();
-            return;
-        }
-        if (!pressed) return;
-
-        if (pressed != VK_ESCAPE) m_key = pressed;
-        cancelListen();
-    }
-
     // ----- Save -----
 
     void onSave(CCObject*) {
@@ -326,7 +290,7 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
     void loadSettings() {
         int id = m_level->m_levelID.value();
         m_fields->triggers = parseTriggers(Mod::get()->getSavedValue<std::string>(triggersKey(id), ""));
-        m_fields->key = Mod::get()->getSavedValue<int>(keyKey(), 0);
+        m_fields->key = normalizeKey(Mod::get()->getSavedValue<int>(keyKey(), 0));
         bool levelOn = Mod::get()->getSavedValue<bool>(enabledKey(id), true);
         bool masterOn = Mod::get()->getSettingValue<bool>("master-enabled");
         m_fields->enabled = levelOn && masterOn;
