@@ -4,6 +4,8 @@ auto deafen mod for geode, no more paying :)
 
 Auto Deafen presses a key or mouse button at percentages you choose during a Geometry Dash level, so you can deafen in Discord at specific points without looking away from the game.
 
+**Windows only.** Auto Deafen uses Windows input functions, so it won't run on macOS or Linux.
+
 ## Features
 
 - Set one or more trigger percentages per level, for example `25, 50, 75`.
