@@ -148,20 +148,20 @@ public:
 
         auto setBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Set Key"), this, menu_selector(AutoDeafenPopup::onListen));
-        setBtn->setScale(0.7f);
+        setBtn->getNormalImage()->setScale(0.7f);
         setBtn->setPosition({-95.f, 0.f});
         row->addChild(setBtn);
 
         auto testBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Test"), this, menu_selector(AutoDeafenPopup::onTest));
-        testBtn->setScale(0.7f);
+        testBtn->getNormalImage()->setScale(0.7f);
         testBtn->setPosition({0.f, 0.f});
         row->addChild(testBtn);
 
         m_toggleSprite = ButtonSprite::create(m_enabled ? "On" : "Off");
         auto toggleBtn = CCMenuItemSpriteExtra::create(
             m_toggleSprite, this, menu_selector(AutoDeafenPopup::onToggle));
-        toggleBtn->setScale(0.7f);
+        toggleBtn->getNormalImage()->setScale(0.7f);
         toggleBtn->setPosition({95.f, 0.f});
         row->addChild(toggleBtn);
 
@@ -224,10 +224,13 @@ public:
         bool anyDown = false;
         bool leftOrRight = false;
         for (int vk = 1; vk <= 0xFE; ++vk) {
-            if (!isDown(vk)) continue;
-            anyDown = true;
+            short state = GetAsyncKeyState(vk);
+            bool down = (state & 0x8000) != 0;   // held right now
+            bool tapped = (state & 0x0001) != 0; // pressed since the last check, even if already released
+            if (!down && !tapped) continue;
+            if (down) anyDown = true;
             if (vk == VK_LBUTTON || vk == VK_RBUTTON) {
-                leftOrRight = true;
+                if (down) leftOrRight = true;
                 continue;
             }
             if (!pressed) pressed = vk;
