@@ -74,6 +74,11 @@ static void pressBind(int key) {
     keybd_event(static_cast<BYTE>(key), 0, 0, 0);
     keybd_event(static_cast<BYTE>(key), 0, KEYEVENTF_KEYUP, 0);
 }
+// Set when a pause undeafened us; cleared when the level is retried or quit.
+static bool gDeafenOnResume = false;
+// Set when Resume is pressed in the pause menu; the level presses the key on its next frame.
+static bool gResumeNow = false;
+
 // ---------- settings popup ----------
 
 class AutoDeafenPopup : public Popup {
@@ -268,6 +273,14 @@ class $modify(AutoDeafenPauseLayer, PauseLayer) {
         this->addChild(menu);
     }
 
+    void onResume(CCObject* sender) {
+        PauseLayer::onResume(sender);
+        if (gDeafenOnResume) {
+            gDeafenOnResume = false;
+            gResumeNow = true;
+        }
+    }
+
     void onAutoDeafen(CCObject*) {
         auto pl = PlayLayer::get();
         if (!pl || !pl->m_level) return;
@@ -318,17 +331,24 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
 
     void pauseGame(bool unfocused) {
         // Alt-tabbing (unfocused) doesn't undeafen; only the pause menu does.
-        if (!unfocused) undeafenIfNeeded("pause");
+        if (!unfocused && m_fields->deafened && m_fields->key != 0) {
+            undeafenIfNeeded("pause");
+            gDeafenOnResume = true;
+        }
         PlayLayer::pauseGame(unfocused);
     }
 
     void onQuit() {
         undeafenIfNeeded("leaving level");
+        gDeafenOnResume = false;
+        gResumeNow = false;
         PlayLayer::onQuit();
     }
 
     void resetLevel() {
         PlayLayer::resetLevel();
+        gDeafenOnResume = false;
+        gResumeNow = false;
         m_fields->fired.clear();
         m_fields->loaded = false; // re-read in case settings changed in the pause menu
     }
@@ -337,6 +357,14 @@ class $modify(AutoDeafenPlayLayer, PlayLayer) {
         PlayLayer::updateProgressbar();
         if (!m_level) return;
         if (!m_fields->loaded) loadSettings();
+        if (gResumeNow) {
+            gResumeNow = false;
+            if (m_fields->key != 0 && !m_isPracticeMode) {
+                pressBind(m_fields->key);
+                m_fields->deafened = true;
+                log::info("Auto Deafen: deafened again on resume");
+            }
+        }
         if (!m_fields->enabled || m_fields->triggers.empty() || m_fields->key == 0) return;
         if (m_isPracticeMode) return; // never auto-deafen in practice mode
 
