@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(AutoDeafen VERSION 1.0.0)
+project(AutoDeafen VERSION 1.1.1)
 
 if (NOT DEFINED ENV{GEODE_SDK})
     message(FATAL_ERROR "Unable to find Geode SDK. Set the GEODE_SDK environment variable.")
