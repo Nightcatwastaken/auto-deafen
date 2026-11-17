@@ -1,7 +1,7 @@
 {
     "geode": "5.11.2",
     "gd": {
-        "win": "2.2081"
+        "win": "*"
     },
     "id": "nightcat.auto-deafen",
     "name": "Auto Deafen",
