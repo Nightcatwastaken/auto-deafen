@@ -6,6 +6,8 @@ Auto Deafen presses a key or mouse button at percentages you choose during a Geo
 
 **Windows only.** Auto Deafen uses Windows input functions, so it won't run on macOS or Linux.
 
+Guide: [autodeafen.netlify.app](https://autodeafen.netlify.app/)
+
 ## Features
 
 - Set one or more trigger percentages per level, for example `25, 50, 75`.
@@ -27,7 +29,9 @@ Mouse side buttons work best. Left and right click press at your cursor, so bind
 
 ## Installation
 
-Download `nightcat.auto-deafen.geode` from the Releases page and drop it into your `geode/mods` folder.
+Download `nightcat.auto-deafen.geode` from the [Releases page](https://github.com/Nightcatwastaken/auto-deafen/releases) and drop it into your `geode/mods` folder.
+
+For a step-by-step guide with an FAQ, see [autodeafen.netlify.app](https://autodeafen.netlify.app/).
 
 ## Building from source
 
