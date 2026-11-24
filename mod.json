@@ -5,7 +5,7 @@
     },
     "id": "nightcat.auto-deafen",
     "name": "Auto Deafen",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "developer": "Nightcatwastaken",
     "description": "Presses a key automatically at chosen level percentages.",
     "tags": ["gameplay"],
