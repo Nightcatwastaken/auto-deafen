@@ -2,6 +2,7 @@
 #include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/utils/Keyboard.hpp>
+#include <Geode/ui/Toggler.hpp>
 #include <algorithm>
 #include <set>
 #include <sstream>
@@ -87,7 +88,7 @@ class AutoDeafenPopup : public Popup {
     bool m_enabled = true;
     TextInput* m_triggerInput = nullptr;
     CCLabelBMFont* m_keyLabel = nullptr;
-    ButtonSprite* m_toggleSprite = nullptr;
+    Toggler* m_toggler = nullptr;
 
     bool m_listening = false;
 
@@ -148,12 +149,17 @@ public:
         testBtn->setPosition({0.f, 0.f});
         row->addChild(testBtn);
 
-        m_toggleSprite = ButtonSprite::create(m_enabled ? "On" : "Off");
-        auto toggleBtn = CCMenuItemSpriteExtra::create(
-            m_toggleSprite, this, menu_selector(AutoDeafenPopup::onToggle));
-        toggleBtn->getNormalImage()->setScale(0.7f);
-        toggleBtn->setPosition({95.f, 0.f});
-        row->addChild(toggleBtn);
+        m_toggler = Toggler::createWithStandardSprites(0.7f, [this](Toggler*, bool on) {
+            m_enabled = on;
+        });
+        m_toggler->setToggled(m_enabled);
+        m_toggler->setPosition({95.f, 0.f});
+        row->addChild(m_toggler);
+
+        auto enabledLabel = CCLabelBMFont::create("Enabled", "goldFont.fnt");
+        enabledLabel->setScale(0.35f);
+        enabledLabel->setPosition({cx + 95.f, cy - 52.f});
+        m_mainLayer->addChild(enabledLabel);
 
         m_mainLayer->addChild(row);
 
@@ -168,10 +174,6 @@ public:
         return true;
     }
 
-    void onToggle(CCObject*) {
-        m_enabled = !m_enabled;
-        m_toggleSprite->setString(m_enabled ? "On" : "Off");
-    }
 
     void onTest(CCObject*) {
         if (m_key == 0) {
@@ -250,9 +252,9 @@ public:
 };
 // ---------- pause menu button ----------
 
-// Icon position, measured from the right and top edges of the window.
-static constexpr float ICON_FROM_RIGHT = 36.f;
-static constexpr float ICON_FROM_TOP = 73.f;
+// Icon position, measured from the right and bottom edges of the window.
+static constexpr float ICON_FROM_RIGHT = 32.f;
+static constexpr float ICON_FROM_BOTTOM = 28.f;
 
 static CCNode* autoDeafenIcon() {
     auto spr = CCSprite::create("icon-button.png"_spr);
@@ -269,7 +271,7 @@ class $modify(AutoDeafenPauseLayer, PauseLayer) {
         auto menu = CCMenu::create();
         menu->addChild(btn);
         auto win = CCDirector::sharedDirector()->getWinSize();
-        menu->setPosition({win.width - ICON_FROM_RIGHT, win.height - ICON_FROM_TOP});
+        menu->setPosition({win.width - ICON_FROM_RIGHT, ICON_FROM_BOTTOM});
         this->addChild(menu);
     }
 
